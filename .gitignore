@@ -1,0 +1,7 @@
+/target
+/MacroBoard-ESP/.pio
+/MacroBoard-ESP/.vscode/.browse.c_cpp.db*
+/MacroBoard-ESP/.vscode/c_cpp_properties.json
+/MacroBoard-ESP/.vscode/launch.json
+/MacroBoard-ESP/.vscode/ipch
+/MacroBoard-ESP/src/wifi-data.h
