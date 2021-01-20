@@ -79,4 +79,9 @@ void connectToNetwork(const char *ssid, const char *password, uint8_t maxAttempt
 	Serial.println("Connected to network");
 	Serial.println(WiFi.localIP());
 }
+
+String get_ip_string()
+{
+	return WiFi.localIP().toString();
+}
 #endif

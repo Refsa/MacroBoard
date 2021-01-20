@@ -4,6 +4,7 @@
 #include <wifi_helpers.h>
 #include <thread.h>
 #include <wifi_data.h>
+#include <display.h>
 
 const uint16_t port = 8080;
 AsyncClient *target_client = NULL;
@@ -86,6 +87,10 @@ void on_client_disconnect(void *, AsyncClient *)
 void on_client_connected(void *data, AsyncClient *client)
 {
     Serial.printf("Client Connected: %f\n", client->localIP().toString());
+
+    String display_data = "Client:" + client->remoteIP().toString();
+    display_print(display_data, 0, 20);
+
     target_client = client;
 
     client->onData(on_client_data);
@@ -100,7 +105,12 @@ void setup()
 
     Serial.println("Program Setup");
 
+    setup_display();
+    display_print("MacroBoard", 0, 0);
+
     connectToNetwork(ssid, password);
+    display_print("IP: " + get_ip_string(), 0, 10);
+
     setup_server(port, on_client_connected);
     setup_buttons(button_callback_tr, button_callback_mr, button_callback_br);
 
