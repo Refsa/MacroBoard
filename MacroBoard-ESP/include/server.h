@@ -5,13 +5,7 @@
 #include <WiFi.h>
 #include <AsyncTCP.h>
 
-#define BUFFER_LEN 1024
-
-struct Packet
-{
-    uint id;
-    byte *payload;
-};
+#define BUFFER_LEN 16384
 
 void setup_server(uint16_t port, AcConnectHandler on_connection);
 

@@ -9,7 +9,10 @@
 		"files.associations": {
 			"functional": "cpp",
 			"random": "cpp",
-			"limits": "cpp"
+			"limits": "cpp",
+			"*.tcc": "cpp",
+			"fstream": "cpp",
+			"memory": "cpp"
 		}
 	}
 }

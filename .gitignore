@@ -4,4 +4,4 @@
 /MacroBoard-ESP/.vscode/c_cpp_properties.json
 /MacroBoard-ESP/.vscode/launch.json
 /MacroBoard-ESP/.vscode/ipch
-/MacroBoard-ESP/src/wifi_data.h
+/MacroBoard-ESP/include/wifi_data.h
