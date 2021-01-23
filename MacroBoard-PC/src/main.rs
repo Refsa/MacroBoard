@@ -1,7 +1,7 @@
 use num_enum::FromPrimitive;
 use num_enum::IntoPrimitive;
 use serde::{de::value::StringDeserializer, Deserialize, Serialize};
-use std::{ascii, convert::TryFrom, error::Error};
+use std::{ascii, borrow::Cow, convert::TryFrom, error::Error};
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
@@ -10,10 +10,11 @@ use tokio::net::TcpStream;
 #[derive(FromPrimitive, IntoPrimitive)]
 enum PacketID {
     #[num_enum(default)]
-    NIL = '0' as u8,
+    NIL = 0 as u8,
     BUTTON_PACKET_ID = '1' as u8,
     STRING_PACKET_ID = '2' as u8,
     BITMAP_PACKET_ID = '3' as u8,
+    ACK_PACKET_ID = 255 as u8,
 }
 
 #[tokio::main]
@@ -21,9 +22,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let addr = "192.168.1.108:8080";
     let mut stream = TcpStream::connect(addr).await?;
 
-    stream.write_all(&string_pkt("AUTH 1337")).await?;
+    let auth_pkt = string_pkt(StringPayload::new("AUTH 1337"));
 
-    let mut buf = vec![0u8; 1024]; 
+    stream.write_all(&auth_pkt).await?;
+
+    let mut buf = vec![0u8; 1024];
 
     println!("Starting TCP Client");
     loop {
@@ -46,8 +49,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 println!("{:?}", btn_pld);
             }
             PacketID::STRING_PACKET_ID => {
-                let msg = String::from_utf8_lossy(&pkt.payload);
-                println!("{}", msg);
+                let msg: StringPayload = pkt.payload.into();
+                println!("{}", msg.unwrap());
             }
             _ => {}
         }
@@ -56,8 +59,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn string_pkt(msg: &str) -> Vec<u8> {
-    [&[PacketID::STRING_PACKET_ID.into()], msg.as_bytes()].concat()
+fn string_pkt(pld: StringPayload) -> Vec<u8> {
+    [
+        &[PacketID::STRING_PACKET_ID.into()],
+        &pld.data[..],
+    ]
+    .concat()
 }
 
 #[repr(C)]
@@ -65,6 +72,30 @@ fn string_pkt(msg: &str) -> Vec<u8> {
 struct Packet {
     id: u8,
     payload: Vec<u8>,
+}
+
+#[repr(C)]
+#[derive(Serialize, Deserialize, Debug)]
+struct StringPayload {
+    data: Vec<u8>,
+}
+
+impl StringPayload {
+    pub fn new(msg: &str) -> Self {
+        StringPayload { data: msg.as_bytes().to_vec() }
+    }
+
+    pub fn unwrap(&self) -> Cow<str> {
+        String::from_utf8_lossy(&self.data)
+    }
+}
+
+impl From<Vec<u8>> for StringPayload {
+    fn from(data: Vec<u8>) -> Self {
+        StringPayload {
+            data: data.to_vec(),
+        }
+    }
 }
 
 #[repr(C)]

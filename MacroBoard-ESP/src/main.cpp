@@ -11,7 +11,7 @@
 #include <logo.h>
 
 // PACKETS
-const char NIL_PACKET_ID = '0';
+const char NIL_PACKET_ID = 0;
 const char BUTTON_PACKET_ID = '1';
 const char STRING_PACKET_ID = '2';
 
@@ -92,14 +92,15 @@ void on_client_data(void *, AsyncClient *client, void *data, size_t len)
     case STRING_PACKET_ID:
     {
         StringPayload str_pld = StringPayload(buf_data);
-        Serial.println("Send StringPayload");
+
+        Serial.printf("Received StringPayload: %s\n", str_pld.msg.c_str());
         server_send(client, str_pld, STRING_PACKET_ID);
         return;
     }
     }
 }
 
-void on_client_disconnect(void *, AsyncClient *)
+void on_client_disconnect(void *, AsyncClient *client)
 {
     target_client = NULL;
     clear_dbuffer(display_buffer, 1, 5);
@@ -119,6 +120,9 @@ void on_client_connected(void *data, AsyncClient *client)
 
     client->onData(on_client_data);
     client->onDisconnect(on_client_disconnect);
+
+    StringPayload str_pld = StringPayload("AUTH");
+    server_send(client, str_pld, STRING_PACKET_ID);
 }
 
 void setup()
