@@ -11,12 +11,6 @@
 #include <logo.h>
 
 // PACKETS
-// const char NIL_PACKET_ID = 0;
-// const char BUTTON_PACKET_ID = '1';
-// const char STRING_PACKET_ID = '2';
-// const char BITMAP_PACKET_ID = '3';
-// const char ACK_PACKET_ID = 255;
-
 typedef enum PacketID
 {
     NIL = 0,
@@ -29,11 +23,12 @@ typedef enum PacketID
 // SERVER
 static const uint16_t port = 8080;
 AsyncClient *target_client = NULL;
-uint32_t expect_ack = NULL;
+uint32_t expect_ack = 0;
 std::vector<ISerializer> outbound;
 
 // DISPLAY
 DisplayBuffer display_buffer;
+Thread display_refresh;
 
 // Buttons
 ButtonMatrix button_matrix;
@@ -45,9 +40,6 @@ void server_send(AsyncClient *client, ISerializer &data, const PacketID &packet_
         return;
     }
 
-    set_dbuffer_line(display_buffer, "Sending Data...", 3);
-    display_dbuffer(display_buffer);
-
     BufDataWriter writer = BufDataWriter();
     expect_ack = mk_pkt(writer, packet_id);
     data.to_bytes(writer);
@@ -57,7 +49,6 @@ void server_send(AsyncClient *client, ISerializer &data, const PacketID &packet_
     client->write(pkt.data, pkt.len);
 
     set_dbuffer_line(display_buffer, "Awaiting Response...", 3);
-    display_dbuffer(display_buffer);
 }
 
 void button_callback(uint8_t btn, BfButton::press_pattern_t pattern)
@@ -92,7 +83,6 @@ void on_client_data(void *, AsyncClient *client, void *data, size_t len)
     u32_t uid = buf_reader.ReadU32();
 
     set_dbuffer_line(display_buffer, "Packet (ID: " + String(pkt_id) + "): " + String(len - 1, 4), 2);
-    display_dbuffer(display_buffer);
 
     switch (pkt_id)
     {
@@ -120,10 +110,9 @@ void on_client_data(void *, AsyncClient *client, void *data, size_t len)
         if (uid == expect_ack)
         {
             set_dbuffer_line(display_buffer, "", 3);
-            display_dbuffer(display_buffer);
             Serial.printf("ACK Received: %d\n", uid);
 
-            expect_ack = NULL;
+            expect_ack = 0;
         }
 
         return;
@@ -134,9 +123,12 @@ void on_client_data(void *, AsyncClient *client, void *data, size_t len)
 void on_client_disconnect(void *, AsyncClient *client)
 {
     target_client = NULL;
+    expect_ack = 0;
+
     clear_dbuffer(display_buffer, 1, 5);
     set_dbuffer_line(display_buffer, "No Client...", 1);
-    display_dbuffer(display_buffer);
+
+    Serial.println("Client Disconnected");
 }
 
 void on_client_connected(void *data, AsyncClient *client)
@@ -145,7 +137,6 @@ void on_client_connected(void *data, AsyncClient *client)
 
     String display_data = "Client:" + client->remoteIP().toString();
     set_dbuffer_line(display_buffer, display_data, 1);
-    display_dbuffer(display_buffer);
 
     target_client = client;
 
@@ -154,6 +145,11 @@ void on_client_connected(void *data, AsyncClient *client)
 
     StringPayload str_pld = StringPayload("AUTH");
     server_send(client, str_pld, STRING_PACKET_ID);
+}
+
+void refresh_display()
+{
+    display_dbuffer(display_buffer);
 }
 
 void setup()
@@ -167,6 +163,8 @@ void setup()
     setup_display();
     display.drawXBitmap(0, 0, Logo_bits, 128, 64, WHITE);
     display.display();
+    display_refresh.setInterval(60);
+    display_refresh.onRun(refresh_display);
     delay(1000);
 
     // set_dbuffer_line(display_buffer, "---- MacroBoard ----", 0);
@@ -188,8 +186,13 @@ void setup()
 
 void loop()
 {
-    if (expect_ack == NULL)
+    if (expect_ack == 0)
     {
         button_matrix.LoopButtons();
+    }
+
+    if (display_refresh.shouldRun())
+    {
+        display_refresh.run();
     }
 }

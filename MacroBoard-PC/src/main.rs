@@ -33,19 +33,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let addr = "192.168.1.108:8080";
     let mut stream = TcpStream::connect(addr).await?;
 
-    let auth_pkt = make_pkt(
-        rmp_serde::to_vec(&StringPayload::new("AUTH 1337").msg).unwrap(),
-        PacketID::STRING_PACKET_ID,
-    );
+    // let auth_pkt = make_pkt(
+    //     rmp_serde::to_vec(&StringPayload::new("AUTH 1337").msg).unwrap(),
+    //     PacketID::STRING_PACKET_ID,
+    // );
 
-    stream.write_all(&auth_pkt).await?;
+    // stream.write_all(&auth_pkt).await?;
 
     let mut buf = vec![0u8; 1024];
 
     println!("Starting TCP Client");
     loop {
         let rec = stream.read(&mut buf).await?;
-        println!("{:?}", &buf[..rec]);
+        println!("Received Data:");
+        // println!("{:?}", &buf[..rec]);
 
         let mut reader = BufReader::new(&buf[..rec]);
 
@@ -54,34 +55,38 @@ async fn main() -> Result<(), Box<dyn Error>> {
             uid: rmp::decode::read_u32(&mut reader).unwrap(),
         };
 
-        // println!("{:?}", pkt);
+        println!("\t{:?}", pkt);
 
-        match PacketID::from(pkt.id) {
-            PacketID::BUTTON_PACKET_ID => {
-                let btn_pld = ButtonPayload {
-                    button: rmp::decode::read_u8(&mut reader).unwrap(),
-                    pattern: rmp::decode::read_u8(&mut reader).unwrap(),
-                };
-
-                println!("{:?}", btn_pld);
-
-                send_ack(pkt.uid, &mut stream).await;
-            }
-            PacketID::STRING_PACKET_ID => {
-                let pld: StringPayload = reader.into();
-                println!("{}", pld.msg);
-
-                send_ack(pkt.uid, &mut stream).await;
-            }
-            _ => {}
-        }
+        handle_pkt(pkt, &mut stream, reader).await;
     }
 
     Ok(())
 }
 
+async fn handle_pkt(pkt: Packet, stream: &mut TcpStream, mut reader: BufReader<&[u8]>) {
+    match PacketID::from(pkt.id) {
+        PacketID::BUTTON_PACKET_ID => {
+            let btn_pld = ButtonPayload {
+                button: rmp::decode::read_u8(&mut reader).unwrap(),
+                pattern: rmp::decode::read_u8(&mut reader).unwrap(),
+            };
+
+            println!("\t{:?}", btn_pld);
+
+            send_ack(pkt.uid, stream).await;
+        }
+        PacketID::STRING_PACKET_ID => {
+            let pld: StringPayload = reader.into();
+            println!("\t{}", pld.msg);
+
+            send_ack(pkt.uid, stream).await;
+        }
+        _ => {}
+    }
+}
+
 async fn send_ack(uid: u32, stream: &mut TcpStream) {
-    // std::thread::sleep(std::time::Duration::from_millis(5000));
+    // std::thread::sleep(std::time::Duration::from_millis(500));
 
     let ack_pkt = make_pkt(rmp_serde::to_vec(&uid).unwrap(), PacketID::ACK_PACKET_ID);
 
