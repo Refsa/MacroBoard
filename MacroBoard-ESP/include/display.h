@@ -18,9 +18,6 @@ struct DisplayBuffer
 
 void setup_display()
 {
-    Serial.begin(115200);
-    Serial.println("Program Start");
-
     if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3D))
     { // Address 0x3D for 128x64
         Serial.println(F("SSD1306 allocation failed"));
@@ -28,11 +25,13 @@ void setup_display()
             ;
     }
     Serial.println("Display Ready");
+
     delay(200);
     display.clearDisplay();
 
     display.setTextSize(1);
     display.setTextColor(WHITE);
+    display.dim(true);
 }
 
 void display_clear()

@@ -29,6 +29,7 @@ std::vector<ISerializer> outbound;
 // DISPLAY
 DisplayBuffer display_buffer;
 Thread display_refresh;
+bool update_display = false;
 
 // Buttons
 ButtonMatrix button_matrix;
@@ -49,6 +50,7 @@ void server_send(AsyncClient *client, ISerializer &data, const PacketID &packet_
     client->write(pkt.data, pkt.len);
 
     set_dbuffer_line(display_buffer, "Awaiting Response...", 3);
+    update_display = true;
 }
 
 void button_callback(uint8_t btn, BfButton::press_pattern_t pattern)
@@ -83,6 +85,7 @@ void on_client_data(void *, AsyncClient *client, void *data, size_t len)
     u32_t uid = buf_reader.ReadU32();
 
     set_dbuffer_line(display_buffer, "Packet (ID: " + String(pkt_id) + "): " + String(len - 1, 4), 2);
+    update_display = true;
 
     switch (pkt_id)
     {
@@ -111,6 +114,7 @@ void on_client_data(void *, AsyncClient *client, void *data, size_t len)
         {
             set_dbuffer_line(display_buffer, "", 3);
             Serial.printf("ACK Received: %d\n", uid);
+            update_display = true;
 
             expect_ack = 0;
         }
@@ -127,6 +131,7 @@ void on_client_disconnect(void *, AsyncClient *client)
 
     clear_dbuffer(display_buffer, 1, 5);
     set_dbuffer_line(display_buffer, "No Client...", 1);
+    update_display = true;
 
     Serial.println("Client Disconnected");
 }
@@ -137,6 +142,7 @@ void on_client_connected(void *data, AsyncClient *client)
 
     String display_data = "Client:" + client->remoteIP().toString();
     set_dbuffer_line(display_buffer, display_data, 1);
+    update_display = true;
 
     target_client = client;
 
@@ -163,7 +169,7 @@ void setup()
     setup_display();
     display.drawXBitmap(0, 0, Logo_bits, 128, 64, WHITE);
     display.display();
-    display_refresh.setInterval(60);
+    display_refresh.setInterval(30);
     display_refresh.onRun(refresh_display);
     delay(1000);
 
@@ -191,8 +197,9 @@ void loop()
         button_matrix.LoopButtons();
     }
 
-    if (display_refresh.shouldRun())
+    if (display_refresh.shouldRun() && update_display)
     {
+        update_display = false;
         display_refresh.run();
     }
 }
