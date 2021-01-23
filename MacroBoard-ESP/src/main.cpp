@@ -22,7 +22,10 @@ AsyncClient *target_client = NULL;
 // DISPLAY
 DisplayBuffer display_buffer;
 
-void server_send(AsyncClient *client, ISerializer *data)
+// Buttons
+ButtonMatrix button_matrix;
+
+void server_send(AsyncClient *client, ISerializer &data, char packet_id)
 {
     if (target_client == NULL)
     {
@@ -32,7 +35,7 @@ void server_send(AsyncClient *client, ISerializer *data)
     set_dbuffer_line(display_buffer, "Sending Data...", 3);
     display_dbuffer(display_buffer);
 
-    BufData pkt = mk_pkt(data->to_bytes(), BUTTON_PACKET_ID);
+    BufData pkt = mk_pkt(data.to_bytes(), packet_id);
     client->write(pkt.data, pkt.len);
 
     set_dbuffer_line(display_buffer, "", 3);
@@ -53,7 +56,7 @@ void button_callback(uint8_t btn, BfButton::press_pattern_t pattern)
         if (target_client->canSend())
         {
             ButtonPayload pld = ButtonPayload(btn, button_state_id(pattern));
-            server_send(target_client, &pld);
+            server_send(target_client, pld, BUTTON_PACKET_ID);
         }
     }
 }
@@ -78,7 +81,9 @@ void on_client_data(void *, AsyncClient *client, void *data, size_t len)
     switch (pkt_id)
     {
     case NIL_PACKET_ID:
+    {
         return;
+    }
     case BUTTON_PACKET_ID:
     {
         ButtonPayload btn_pld = ButtonPayload(buf_data);
@@ -87,9 +92,8 @@ void on_client_data(void *, AsyncClient *client, void *data, size_t len)
     case STRING_PACKET_ID:
     {
         StringPayload str_pld = StringPayload(buf_data);
-
-        BufData pkt = mk_pkt(str_pld.to_bytes(), STRING_PACKET_ID);
-        client->write(pkt.data, pkt.len);
+        Serial.println("Send StringPayload");
+        server_send(client, str_pld, STRING_PACKET_ID);
         return;
     }
     }
@@ -137,9 +141,10 @@ void setup()
     set_dbuffer_line(display_buffer, "No Client...", 1);
 
     setup_server(port, on_client_connected);
+    Serial.println("Server Ready");
 
     button_pressed_callback = button_callback;
-    StartButtons();
+    button_matrix.Setup();
 
     Serial.println("Program Start");
 
@@ -148,5 +153,5 @@ void setup()
 
 void loop()
 {
-    LoopButtons();
+    button_matrix.LoopButtons();
 }
