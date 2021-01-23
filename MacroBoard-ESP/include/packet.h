@@ -3,19 +3,25 @@
 
 #include <Arduino.h>
 #include <buffer.h>
+#include <random>
 
-BufData mk_pkt(BufData data, const char id)
+static const uint32_t MAX_UINT = 1 << 32;
+
+void mk_pkt(BufDataWriter &writer, const char id)
 {
-    uint16_t len = data.len + sizeof(char);
-
-    char *buf = new char[len];
-    buf[0] = id;
-    for (int i = 0; i < data.len; i++)
+    int32_t _uid = rand();
+    uint32_t uid = 0;
+    if (_uid < 0)
     {
-        buf[i + 1] = data.data[i];
+        uid = _uid + MAX_UINT;
+    }
+    else
+    {
+        uid = _uid;
     }
 
-    return BufData(len, buf);
+    writer.WriteChar(id);
+    writer.WriteU32(uid);
 }
 
 #endif

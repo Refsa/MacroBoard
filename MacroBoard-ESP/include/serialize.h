@@ -6,8 +6,8 @@
 class ISerializer
 {
 public:
-    virtual BufData to_bytes();
-    virtual void from_bytes(BufData &data);
+    virtual void to_bytes(BufDataWriter &writer);
+    virtual void from_bytes(BufDataReader &reader);
 };
 
 #endif

@@ -11,9 +11,9 @@ public:
     char pattern;
 
 public:
-    ButtonPayload(BufData &data)
+    ButtonPayload(BufDataReader &reader)
     {
-        from_bytes(data);
+        this->from_bytes(reader);
     }
 
     ButtonPayload(char id_, char pattern_)
@@ -22,19 +22,16 @@ public:
         pattern = pattern_;
     }
 
-    BufData to_bytes()
+    void to_bytes(BufDataWriter &writer)
     {
-        char *buf = new char[2];
-        buf[0] = id;
-        buf[1] = pattern;
-
-        return BufData(2, buf);
+        writer.WriteChar(id);
+        writer.WriteChar(pattern);
     }
 
-    void from_bytes(BufData &data)
+    void from_bytes(BufDataReader &reader)
     {
-        id = data.data[0];
-        pattern = data.data[1];
+        id = reader.ReadChar();
+        pattern = reader.ReadChar();
     }
 };
 
@@ -49,53 +46,52 @@ public:
         msg = msg_;
     }
 
-    StringPayload(BufData &data)
+    StringPayload(BufDataReader &reader)
     {
-        from_bytes(data);
+        from_bytes(reader);
     }
 
-    void from_bytes(BufData &data)
+    void from_bytes(BufDataReader &reader)
     {
-        msg = String(data.data);
+        msg = reader.ReadString();
     }
 
-    BufData to_bytes()
+    void to_bytes(BufDataWriter &writer)
     {
-        char *buf = (char *)msg.c_str();
-        return BufData(msg.length(), buf);
-    }
-};
-
-class BitmapPayload : public ISerializer
-{
-public:
-    int16_t width;
-    int16_t height;
-    uint8_t *data;
-    uint16_t data_len;
-
-public:
-    void from_bytes(BufData &buf)
-    {
-        width = buf.data[0];
-        height = buf.data[1];
-        data_len = buf.len - sizeof(int16_t) * 2;
-        data = (uint8_t *)(buf.data + sizeof(int16_t) * 2);
-    }
-
-    BufData to_bytes()
-    {
-        char *buf = new char[data_len + sizeof(int16_t) * 2];
-        buf[0] = width & 0x00ff;
-        buf[1] = width & 0xff00 >> 8;
-        buf[2] = height & 0x00ff;
-        buf[3] = height & 0xff00 >> 8;
-
-        char *databuf = buf + sizeof(int16_t) * 2;
-        memcpy(buf, &databuf, data_len);
-
-        return BufData(data_len + sizeof(int16_t) * 2, databuf);
+        writer.WriteString(this->msg);
     }
 };
+
+// class BitmapPayload : public ISerializer
+// {
+// public:
+//     int16_t width;
+//     int16_t height;
+//     uint8_t *data;
+//     uint16_t data_len;
+
+// public:
+//     void from_bytes(BufData &buf)
+//     {
+//         width = buf.data[0];
+//         height = buf.data[1];
+//         data_len = buf.len - sizeof(int16_t) * 2;
+//         data = (uint8_t *)(buf.data + sizeof(int16_t) * 2);
+//     }
+
+//     BufData to_bytes()
+//     {
+//         char *buf = new char[data_len + sizeof(int16_t) * 2];
+//         buf[0] = width & 0x00ff;
+//         buf[1] = width & 0xff00 >> 8;
+//         buf[2] = height & 0x00ff;
+//         buf[3] = height & 0xff00 >> 8;
+
+//         char *databuf = buf + sizeof(int16_t) * 2;
+//         memcpy(buf, &databuf, data_len);
+
+//         return BufData(data_len + sizeof(int16_t) * 2, databuf);
+//     }
+// };
 
 #endif

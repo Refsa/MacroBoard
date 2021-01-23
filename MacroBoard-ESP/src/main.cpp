@@ -11,9 +11,20 @@
 #include <logo.h>
 
 // PACKETS
-const char NIL_PACKET_ID = 0;
-const char BUTTON_PACKET_ID = '1';
-const char STRING_PACKET_ID = '2';
+// const char NIL_PACKET_ID = 0;
+// const char BUTTON_PACKET_ID = '1';
+// const char STRING_PACKET_ID = '2';
+// const char BITMAP_PACKET_ID = '3';
+// const char ACK_PACKET_ID = 255;
+
+typedef enum PacketID
+{
+    NIL = 0,
+    BUTTON_PACKET_ID = '1',
+    STRING_PACKET_ID = '2',
+    BITMAP_PACKET_ID = '3',
+    ACK_PACKET_ID = 255,
+};
 
 // SERVER
 static const uint16_t port = 8080;
@@ -25,7 +36,7 @@ DisplayBuffer display_buffer;
 // Buttons
 ButtonMatrix button_matrix;
 
-void server_send(AsyncClient *client, ISerializer &data, char packet_id)
+void server_send(AsyncClient *client, ISerializer &data, const PacketID &packet_id)
 {
     if (target_client == NULL)
     {
@@ -35,7 +46,12 @@ void server_send(AsyncClient *client, ISerializer &data, char packet_id)
     set_dbuffer_line(display_buffer, "Sending Data...", 3);
     display_dbuffer(display_buffer);
 
-    BufData pkt = mk_pkt(data.to_bytes(), packet_id);
+    BufDataWriter writer = BufDataWriter();
+    mk_pkt(writer, packet_id);
+    data.to_bytes(writer);
+
+    BufData pkt = writer.GetData();
+
     client->write(pkt.data, pkt.len);
 
     set_dbuffer_line(display_buffer, "", 3);
@@ -56,42 +72,40 @@ void button_callback(uint8_t btn, BfButton::press_pattern_t pattern)
         if (target_client->canSend())
         {
             ButtonPayload pld = ButtonPayload(btn, button_state_id(pattern));
-            server_send(target_client, pld, BUTTON_PACKET_ID);
+            server_send(target_client, pld, PacketID::BUTTON_PACKET_ID);
         }
     }
 }
 
 void on_client_data(void *, AsyncClient *client, void *data, size_t len)
 {
-    // char *asChar = (char *)data;
-    // Serial.println(asChar);
-
     if (len <= 0)
         return;
 
     char *pkt = (char *)data;
-    char *pld = pkt + 1;
-    BufData buf_data = BufData(len - 1, pld);
+    BufData buf_data = BufData(len, pkt);
+    BufDataReader buf_reader = BufDataReader(buf_data);
 
-    char pkt_id = pkt[0];
+    PacketID pkt_id = (PacketID)buf_reader.ReadChar();
+    u32_t uid = buf_reader.ReadU32();
 
     set_dbuffer_line(display_buffer, "Packet (ID: " + String(pkt_id) + "): " + String(len - 1, 4), 2);
     display_dbuffer(display_buffer);
 
     switch (pkt_id)
     {
-    case NIL_PACKET_ID:
+    case PacketID::NIL:
     {
         return;
     }
-    case BUTTON_PACKET_ID:
+    case PacketID::BUTTON_PACKET_ID:
     {
-        ButtonPayload btn_pld = ButtonPayload(buf_data);
+        ButtonPayload btn_pld = ButtonPayload(buf_reader);
         return;
     }
-    case STRING_PACKET_ID:
+    case PacketID::STRING_PACKET_ID:
     {
-        StringPayload str_pld = StringPayload(buf_data);
+        StringPayload str_pld = StringPayload(buf_reader);
 
         Serial.printf("Received StringPayload: %s\n", str_pld.msg.c_str());
         server_send(client, str_pld, STRING_PACKET_ID);

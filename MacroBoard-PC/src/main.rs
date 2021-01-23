@@ -1,7 +1,18 @@
+#![feature(toowned_clone_into)]
+
+mod string_payload;
+use decode::{read_u32, read_u8};
+use encode::{write_i8, write_u8};
+use string_payload::*;
+
 use num_enum::FromPrimitive;
 use num_enum::IntoPrimitive;
-use serde::{de::value::StringDeserializer, Deserialize, Serialize};
-use std::{ascii, borrow::Cow, convert::TryFrom, error::Error};
+use rmp::*;
+use serde::{Deserialize, Serialize, __private::de::StrDeserializer};
+use std::{
+    error::Error,
+    io::{BufReader, BufWriter},
+};
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
@@ -22,7 +33,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let addr = "192.168.1.108:8080";
     let mut stream = TcpStream::connect(addr).await?;
 
-    let auth_pkt = string_pkt(StringPayload::new("AUTH 1337"));
+    let auth_pkt = make_pkt(
+        rmp_serde::to_vec(&StringPayload::new("AUTH 1337").msg).unwrap(),
+        PacketID::STRING_PACKET_ID,
+    );
 
     stream.write_all(&auth_pkt).await?;
 
@@ -31,26 +45,29 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("Starting TCP Client");
     loop {
         let rec = stream.read(&mut buf).await?;
-
         println!("{:?}", &buf[..rec]);
 
+        let mut reader = BufReader::new(&buf[..rec]);
+
         let pkt = Packet {
-            id: buf[0],
-            payload: buf[1..rec].to_vec(),
+            id: rmp::decode::read_u8(&mut reader).unwrap(),
+            uid: rmp::decode::read_u32(&mut reader).unwrap(),
         };
+
+        // println!("{:?}", pkt);
 
         match PacketID::from(pkt.id) {
             PacketID::BUTTON_PACKET_ID => {
                 let btn_pld = ButtonPayload {
-                    button: pkt.payload[0],
-                    pattern: pkt.payload[1],
+                    button: rmp::decode::read_u8(&mut reader).unwrap(),
+                    pattern: rmp::decode::read_u8(&mut reader).unwrap(),
                 };
 
                 println!("{:?}", btn_pld);
             }
             PacketID::STRING_PACKET_ID => {
-                let msg: StringPayload = pkt.payload.into();
-                println!("{}", msg.unwrap());
+                let pld: StringPayload = reader.into();
+                println!("{}", pld.msg);
             }
             _ => {}
         }
@@ -59,43 +76,31 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn string_pkt(pld: StringPayload) -> Vec<u8> {
-    [
-        &[PacketID::STRING_PACKET_ID.into()],
-        &pld.data[..],
-    ]
-    .concat()
+fn make_pkt(mut pld: Vec<u8>, packet_id: PacketID) -> Vec<u8> {
+    let mut buf = Vec::new();
+
+    let uid = gen_uid();
+
+    let _ = rmp::encode::write_u8(&mut buf, packet_id.into());
+    let _ = rmp::encode::write_u32(&mut buf, uid);
+
+    buf.append(&mut pld);
+
+    buf
+}
+
+fn gen_uid() -> u32 {
+    use rand::Rng;
+
+    let mut rng = rand::thread_rng();
+    rng.gen()
 }
 
 #[repr(C)]
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 struct Packet {
     id: u8,
-    payload: Vec<u8>,
-}
-
-#[repr(C)]
-#[derive(Serialize, Deserialize, Debug)]
-struct StringPayload {
-    data: Vec<u8>,
-}
-
-impl StringPayload {
-    pub fn new(msg: &str) -> Self {
-        StringPayload { data: msg.as_bytes().to_vec() }
-    }
-
-    pub fn unwrap(&self) -> Cow<str> {
-        String::from_utf8_lossy(&self.data)
-    }
-}
-
-impl From<Vec<u8>> for StringPayload {
-    fn from(data: Vec<u8>) -> Self {
-        StringPayload {
-            data: data.to_vec(),
-        }
-    }
+    uid: u32,
 }
 
 #[repr(C)]
@@ -112,3 +117,7 @@ struct BitmapPayload {
     height: i16,
     data: Vec<u8>,
 }
+
+#[repr(C)]
+#[derive(Serialize, Deserialize, Debug)]
+struct AckPayload {}
