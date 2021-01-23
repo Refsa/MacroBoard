@@ -22,7 +22,7 @@ AsyncClient *target_client = NULL;
 // DISPLAY
 DisplayBuffer display_buffer;
 
-void server_send(AsyncClient *client, BfButton *btn, uint8_t row, const BfButton::press_pattern_t &pattern)
+void server_send(AsyncClient *client, ISerializer *data)
 {
     if (target_client == NULL)
     {
@@ -32,16 +32,14 @@ void server_send(AsyncClient *client, BfButton *btn, uint8_t row, const BfButton
     set_dbuffer_line(display_buffer, "Sending Data...", 3);
     display_dbuffer(display_buffer);
 
-    ButtonPayload pld = ButtonPayload(btn->getID() + row * 4, button_state_id(pattern));
-    BufData pkt = mk_pkt(pld.to_bytes(), BUTTON_PACKET_ID);
-
+    BufData pkt = mk_pkt(data->to_bytes(), BUTTON_PACKET_ID);
     client->write(pkt.data, pkt.len);
 
     set_dbuffer_line(display_buffer, "", 3);
     display_dbuffer(display_buffer);
 }
 
-void button_callback_tr(BfButton *btn, BfButton::press_pattern_t pattern)
+void button_callback(uint8_t btn, BfButton::press_pattern_t pattern)
 {
     Serial.println("Button Pressed");
 
@@ -54,43 +52,8 @@ void button_callback_tr(BfButton *btn, BfButton::press_pattern_t pattern)
     {
         if (target_client->canSend())
         {
-            server_send(target_client, btn, 0, pattern);
-        }
-    }
-}
-
-void button_callback_mr(BfButton *btn, BfButton::press_pattern_t pattern)
-{
-    Serial.println("Button Pressed");
-
-    if (target_client == NULL)
-    {
-        return;
-    }
-
-    if (target_client->connected())
-    {
-        if (target_client->canSend())
-        {
-            server_send(target_client, btn, 1, pattern);
-        }
-    }
-}
-
-void button_callback_br(BfButton *btn, BfButton::press_pattern_t pattern)
-{
-    Serial.println("Button Pressed");
-
-    if (target_client == NULL)
-    {
-        return;
-    }
-
-    if (target_client->connected())
-    {
-        if (target_client->canSend())
-        {
-            server_send(target_client, btn, 2, pattern);
+            ButtonPayload pld = ButtonPayload(btn, button_state_id(pattern));
+            server_send(target_client, &pld);
         }
     }
 }
@@ -117,18 +80,18 @@ void on_client_data(void *, AsyncClient *client, void *data, size_t len)
     case NIL_PACKET_ID:
         return;
     case BUTTON_PACKET_ID:
-        {
-            ButtonPayload btn_pld = ButtonPayload(buf_data);
-            return;
-        }
+    {
+        ButtonPayload btn_pld = ButtonPayload(buf_data);
+        return;
+    }
     case STRING_PACKET_ID:
-        {
-            StringPayload str_pld = StringPayload(buf_data);
+    {
+        StringPayload str_pld = StringPayload(buf_data);
 
-            BufData pkt = mk_pkt(str_pld.to_bytes(), STRING_PACKET_ID);
-            client->write(pkt.data, pkt.len);
-            return;
-        }
+        BufData pkt = mk_pkt(str_pld.to_bytes(), STRING_PACKET_ID);
+        client->write(pkt.data, pkt.len);
+        return;
+    }
     }
 }
 
@@ -174,7 +137,9 @@ void setup()
     set_dbuffer_line(display_buffer, "No Client...", 1);
 
     setup_server(port, on_client_connected);
-    setup_buttons(button_callback_tr, button_callback_mr, button_callback_br);
+
+    button_pressed_callback = button_callback;
+    StartButtons();
 
     Serial.println("Program Start");
 
@@ -183,7 +148,5 @@ void setup()
 
 void loop()
 {
-    button_manager_tr.loop();
-    button_manager_mr.loop();
-    button_manager_br.loop();
+    LoopButtons();
 }
