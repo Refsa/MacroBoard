@@ -64,16 +64,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 };
 
                 println!("{:?}", btn_pld);
+
+                send_ack(pkt.uid, &mut stream).await;
             }
             PacketID::STRING_PACKET_ID => {
                 let pld: StringPayload = reader.into();
                 println!("{}", pld.msg);
+
+                send_ack(pkt.uid, &mut stream).await;
             }
             _ => {}
         }
     }
 
     Ok(())
+}
+
+async fn send_ack(uid: u32, stream: &mut TcpStream) {
+    // std::thread::sleep(std::time::Duration::from_millis(5000));
+
+    let ack_pkt = make_pkt(rmp_serde::to_vec(&uid).unwrap(), PacketID::ACK_PACKET_ID);
+
+    let _ = stream.write_all(&ack_pkt).await;
 }
 
 fn make_pkt(mut pld: Vec<u8>, packet_id: PacketID) -> Vec<u8> {

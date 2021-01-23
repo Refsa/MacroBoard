@@ -7,7 +7,7 @@
 
 static const uint32_t MAX_UINT = 1 << 32;
 
-void mk_pkt(BufDataWriter &writer, const char id)
+uint32_t mk_pkt(BufDataWriter &writer, const char id)
 {
     int32_t _uid = rand();
     uint32_t uid = 0;
@@ -22,6 +22,8 @@ void mk_pkt(BufDataWriter &writer, const char id)
 
     writer.WriteChar(id);
     writer.WriteU32(uid);
+
+    return uid;
 }
 
 #endif

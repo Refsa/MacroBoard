@@ -29,6 +29,8 @@ typedef enum PacketID
 // SERVER
 static const uint16_t port = 8080;
 AsyncClient *target_client = NULL;
+uint32_t expect_ack = NULL;
+std::vector<ISerializer> outbound;
 
 // DISPLAY
 DisplayBuffer display_buffer;
@@ -47,14 +49,14 @@ void server_send(AsyncClient *client, ISerializer &data, const PacketID &packet_
     display_dbuffer(display_buffer);
 
     BufDataWriter writer = BufDataWriter();
-    mk_pkt(writer, packet_id);
+    expect_ack = mk_pkt(writer, packet_id);
     data.to_bytes(writer);
 
     BufData pkt = writer.GetData();
 
     client->write(pkt.data, pkt.len);
 
-    set_dbuffer_line(display_buffer, "", 3);
+    set_dbuffer_line(display_buffer, "Awaiting Response...", 3);
     display_dbuffer(display_buffer);
 }
 
@@ -109,6 +111,21 @@ void on_client_data(void *, AsyncClient *client, void *data, size_t len)
 
         Serial.printf("Received StringPayload: %s\n", str_pld.msg.c_str());
         server_send(client, str_pld, STRING_PACKET_ID);
+        return;
+    }
+    case PacketID::ACK_PACKET_ID:
+    {
+        uint32_t uid = buf_reader.ReadU32();
+
+        if (uid == expect_ack)
+        {
+            set_dbuffer_line(display_buffer, "", 3);
+            display_dbuffer(display_buffer);
+            Serial.printf("ACK Received: %d\n", uid);
+
+            expect_ack = NULL;
+        }
+
         return;
     }
     }
@@ -171,5 +188,8 @@ void setup()
 
 void loop()
 {
-    button_matrix.LoopButtons();
+    if (expect_ack == NULL)
+    {
+        button_matrix.LoopButtons();
+    }
 }
