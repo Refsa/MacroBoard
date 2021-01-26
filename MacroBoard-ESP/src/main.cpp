@@ -206,13 +206,19 @@ void setup()
     display.display();
     display_refresh.setInterval(16);
     display_refresh.onRun(refresh_display);
-    delay(1000);
+    delay(400);
 
     // set_dbuffer_line(display_buffer, "---- MacroBoard ----", 0);
 
-    connectToNetwork(ssid, password);
-    set_dbuffer_line(display_buffer, "IP: " + get_ip_string(), 0);
-    set_dbuffer_line(display_buffer, "No Client...", 1);
+    if (connectToNetwork(ssid, password))
+    {
+        set_dbuffer_line(display_buffer, "IP: " + get_ip_string(), 0);
+        set_dbuffer_line(display_buffer, "No Client...", 1);
+    }
+    else
+    {
+        set_dbuffer_line(display_buffer, "Failed to connect to WiFI", 0);
+    }
 
     setup_server(port, on_client_connected);
     Serial.println("Server Ready");
@@ -237,13 +243,12 @@ void loop()
         button_matrix.LoopButtons();
 
         rot_enc.Loop();
-        
+
         if (slide_pot_task.shouldRun())
         {
             slide_pot_task.run();
         }
     }
-
 
     if (display_refresh.shouldRun() && update_display)
     {

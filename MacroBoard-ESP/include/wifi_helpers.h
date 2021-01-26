@@ -3,6 +3,9 @@
 
 #include <WiFi.h>
 
+#define WIFI_CONNECT_TIMEOUT 1000
+#define WIFI_CONNECT_ATTEMPTS 5
+
 String translateEncryptionType(wifi_auth_mode_t encryptionType)
 {
 
@@ -50,34 +53,41 @@ void scanNetworks()
 	}
 }
 
-void tryConnect(const char *ssid, const char *password, uint8_t attempts, uint8_t maxAttempts)
+bool tryConnect(const char *ssid, const char *password)
 {
-	WiFi.begin(ssid, password);
+	size_t start_millis = millis();
 
-	if (WiFi.waitForConnectResult() != WL_CONNECTED)
+	wl_status_t status = WiFi.begin(ssid, password);
+	for (;;)
 	{
-		Serial.printf("WiFi Failed!\n");
+		if ((millis() - start_millis) > WIFI_CONNECT_TIMEOUT)
+			break;
 
-		if (attempts >= maxAttempts)
+		if (WiFi.status() == WL_CONNECTED)
 		{
-			return;
-		}
-		else
-		{
-			tryConnect(ssid, password, attempts + 1, maxAttempts);
+			return true;
 		}
 	}
+
+	return false;
 }
 
-
-void connectToNetwork(const char *ssid, const char *password, uint8_t maxAttempts = 0)
+bool connectToNetwork(const char *ssid, const char *password)
 {
 	WiFi.mode(WIFI_STA);
-	
-	tryConnect(ssid, password, 0, maxAttempts);
+
+	bool connected = false;
+	for (int i = 0; i < WIFI_CONNECT_ATTEMPTS; i++)
+	{
+		connected = tryConnect(ssid, password);
+		if (connected)
+			break;
+	}
 
 	Serial.println("Connected to network");
 	Serial.println(WiFi.localIP());
+
+	return connected;
 }
 
 String get_ip_string()
