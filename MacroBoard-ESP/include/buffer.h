@@ -39,6 +39,16 @@ struct BufDataReader
     {
         return this->unpacker.unpackString();
     }
+
+    float ReadFloat()
+    {
+        return this->unpacker.unpackFloat32();
+    }
+
+    float ReadI8()
+    {
+        return this->unpacker.unpackInt8();
+    }
 };
 
 struct BufDataWriter
@@ -68,6 +78,16 @@ struct BufDataWriter
     void WriteBufData(BufData &bufData)
     {
         this->packer.pack(bufData.data, bufData.len);
+    }
+
+    void WriteFloat(const float &value)
+    {
+        this->packer.pack(value);
+    }
+
+    void WriteI8(const int8_t &value)
+    {
+        this->packer.pack(value);
     }
 
     BufData GetData()

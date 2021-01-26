@@ -9,6 +9,8 @@
 #include <payloads.h>
 #include <buffer.h>
 #include <logo.h>
+#include <slide_pot.h>
+#include <rotary_encoder.h>
 
 // PACKETS
 typedef enum PacketID
@@ -17,6 +19,8 @@ typedef enum PacketID
     BUTTON_PACKET_ID = '1',
     STRING_PACKET_ID = '2',
     BITMAP_PACKET_ID = '3',
+    SLIDE_POT_PACKET_ID = '4',
+    ROT_ENC_PACKET_ID = '5',
     ACK_PACKET_ID = 255,
 };
 
@@ -33,6 +37,13 @@ bool update_display = false;
 
 // Buttons
 ButtonMatrix button_matrix;
+
+// Slide pot
+SlidePot slide_pot(36);
+Thread slide_pot_task;
+
+// Rotary Encoder
+RotaryEncoder rot_enc(3, 14);
 
 void server_send(AsyncClient *client, ISerializer &data, const PacketID &packet_id)
 {
@@ -51,25 +62,6 @@ void server_send(AsyncClient *client, ISerializer &data, const PacketID &packet_
 
     set_dbuffer_line(display_buffer, "Awaiting Response...", 3);
     update_display = true;
-}
-
-void button_callback(uint8_t btn, BfButton::press_pattern_t pattern)
-{
-    Serial.println("Button Pressed");
-
-    if (target_client == NULL)
-    {
-        return;
-    }
-
-    if (target_client->connected())
-    {
-        if (target_client->canSend())
-        {
-            ButtonPayload pld = ButtonPayload(btn, button_state_id(pattern));
-            server_send(target_client, pld, PacketID::BUTTON_PACKET_ID);
-        }
-    }
 }
 
 void on_client_data(void *, AsyncClient *client, void *data, size_t len)
@@ -158,6 +150,49 @@ void refresh_display()
     display_dbuffer(display_buffer);
 }
 
+void button_callback(uint8_t btn, BfButton::press_pattern_t pattern)
+{
+    Serial.println("Button Pressed");
+
+    if (target_client == NULL)
+    {
+        return;
+    }
+
+    if (target_client->connected())
+    {
+        if (target_client->canSend())
+        {
+            ButtonPayload pld = ButtonPayload(btn, button_state_id(pattern));
+            server_send(target_client, pld, PacketID::BUTTON_PACKET_ID);
+        }
+    }
+}
+
+void check_slide_pot()
+{
+    float reading = 0.0;
+    bool update = slide_pot.Read(reading);
+
+    if (update && target_client != NULL)
+    {
+        SlidePotPayload pld = SlidePotPayload(reading);
+        server_send(target_client, pld, PacketID::SLIDE_POT_PACKET_ID);
+
+        set_dbuffer_line(display_buffer, "Pot: " + String(reading), 3);
+        update_display = true;
+    }
+}
+
+void rot_enc_state_changed(RotaryEncoder::State state)
+{
+    if (state != RotaryEncoder::State::NONE)
+    {
+        RotaryEncPayload pld = RotaryEncPayload(RotaryEncoder::StateToID(state));
+        server_send(target_client, pld, PacketID::ROT_ENC_PACKET_ID);
+    }
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -169,7 +204,7 @@ void setup()
     setup_display();
     display.drawXBitmap(0, 0, Logo_bits, 128, 64, WHITE);
     display.display();
-    display_refresh.setInterval(30);
+    display_refresh.setInterval(16);
     display_refresh.onRun(refresh_display);
     delay(1000);
 
@@ -185,6 +220,11 @@ void setup()
     button_pressed_callback = button_callback;
     button_matrix.Setup();
 
+    rot_enc.OnStateChanged(rot_enc_state_changed);
+
+    slide_pot_task.onRun(check_slide_pot);
+    slide_pot_task.setInterval(20);
+
     Serial.println("Program Start");
 
     display_dbuffer(display_buffer);
@@ -195,7 +235,15 @@ void loop()
     if (expect_ack == 0)
     {
         button_matrix.LoopButtons();
+
+        rot_enc.Loop();
+        
+        if (slide_pot_task.shouldRun())
+        {
+            slide_pot_task.run();
+        }
     }
+
 
     if (display_refresh.shouldRun() && update_display)
     {

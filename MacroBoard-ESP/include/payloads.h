@@ -62,6 +62,60 @@ public:
     }
 };
 
+class SlidePotPayload : public ISerializer
+{
+public:
+    float normalized_reading;
+
+public:
+    SlidePotPayload(float value)
+    {
+        this->normalized_reading = value;
+    }
+
+    SlidePotPayload(BufDataReader &reader)
+    {
+        from_bytes(reader);
+    }
+
+    void from_bytes(BufDataReader &reader)
+    {
+        this->normalized_reading = reader.ReadFloat();
+    }
+
+    void to_bytes(BufDataWriter &writer)
+    {
+        writer.WriteFloat(this->normalized_reading);
+    }
+};
+
+class RotaryEncPayload : public ISerializer
+{
+public:
+    int8_t reading;
+
+public:
+    RotaryEncPayload(int8_t value)
+    {
+        this->reading = value;
+    }
+
+    RotaryEncPayload(BufDataReader &reader)
+    {
+        from_bytes(reader);
+    }
+
+    void from_bytes(BufDataReader &reader)
+    {
+        this->reading = reader.ReadI8();
+    }
+
+    void to_bytes(BufDataWriter &writer)
+    {
+        writer.WriteI8(this->reading);
+    }
+};
+
 // class BitmapPayload : public ISerializer
 // {
 // public:

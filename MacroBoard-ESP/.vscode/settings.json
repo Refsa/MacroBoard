@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "functional": "cpp"
+        "functional": "cpp",
+        "*.tpp": "cpp"
     }
 }
