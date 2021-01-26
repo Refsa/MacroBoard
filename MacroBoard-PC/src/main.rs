@@ -17,27 +17,9 @@ use rot_enc_payload::*;
 use slide_pot_payload::*;
 use string_payload::*;
 
-use num_enum::FromPrimitive;
-use num_enum::IntoPrimitive;
 use serde::{Deserialize, Serialize};
-use std::{error::Error, io::BufReader};
-use tokio::io::AsyncReadExt;
-use tokio::io::AsyncWriteExt;
+use std::{io::BufReader};
 use tokio::net::TcpStream;
-
-#[allow(non_camel_case_types)]
-#[repr(u8)]
-#[derive(FromPrimitive, IntoPrimitive)]
-enum PacketID {
-    #[num_enum(default)]
-    NIL = 0 as u8,
-    BUTTON_PACKET_ID = '1' as u8,
-    STRING_PACKET_ID = '2' as u8,
-    BITMAP_PACKET_ID = '3' as u8,
-    SLIDE_POT_PACKET_ID = '4' as u8,
-    ROT_ENC_PACKET_ID = '5' as u8,
-    ACK_PACKET_ID = 255 as u8,
-}
 
 #[tokio::main]
 async fn main() {
@@ -57,35 +39,6 @@ async fn main() {
     }
 
     let _ = client.shutdown.send(Void);
-
-
-    // let auth_pkt = make_pkt(
-    //     rmp_serde::to_vec(&StringPayload::new("AUTH 1337").msg).unwrap(),
-    //     PacketID::STRING_PACKET_ID,
-    // );
-    // stream.write_all(&auth_pkt).await?;
-
-    // let mut buf = vec![0u8; 1024];
-
-    // println!("Starting TCP Client");
-    // loop {
-    //     let rec = stream.read(&mut buf).await?;
-    //     println!("Received Data:");
-    //     // println!("{:?}", &buf[..rec]);
-
-    //     let mut reader = BufReader::new(&buf[..rec]);
-
-    //     let pkt = Packet {
-    //         id: rmp::decode::read_u8(&mut reader).unwrap(),
-    //         uid: rmp::decode::read_u32(&mut reader).unwrap(),
-    //     };
-
-    //     println!("\t{:?}", pkt);
-
-    //     handle_pkt(pkt, &mut stream, reader).await;
-    // }
-
-    // Ok(())
 }
 
 async fn handle_event(event: Event, client_handle: &mut ClientHandle) {
@@ -148,26 +101,6 @@ async fn send_ack(uid: u32, client_handle: &mut ClientHandle) {
     let _ = client_handle.sender.send(ack_pkt).await;
 
     // let _ = stream.write_all(&ack_pkt).await;
-}
-
-fn make_pkt(mut pld: Vec<u8>, packet_id: PacketID) -> Vec<u8> {
-    let mut buf = Vec::new();
-
-    let uid = gen_uid();
-
-    let _ = rmp::encode::write_u8(&mut buf, packet_id.into());
-    let _ = rmp::encode::write_u32(&mut buf, uid);
-
-    buf.append(&mut pld);
-
-    buf
-}
-
-fn gen_uid() -> u32 {
-    use rand::Rng;
-
-    let mut rng = rand::thread_rng();
-    rng.gen()
 }
 
 #[repr(C)]
