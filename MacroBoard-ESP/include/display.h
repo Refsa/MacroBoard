@@ -25,8 +25,6 @@ void setup_display()
             ;
     }
     Serial.println("Display Ready");
-
-    delay(200);
     display.clearDisplay();
 
     display.setTextSize(1);
