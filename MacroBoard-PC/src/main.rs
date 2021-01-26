@@ -1,14 +1,19 @@
 #![feature(toowned_clone_into)]
 
+mod rot_enc_payload;
+mod slide_pot_payload;
 mod string_payload;
+
 use decode::{read_u32, read_u8};
 use encode::{write_i8, write_u8};
+use rot_enc_payload::*;
+use slide_pot_payload::*;
 use string_payload::*;
 
 use num_enum::FromPrimitive;
 use num_enum::IntoPrimitive;
 use rmp::*;
-use serde::{Deserialize, Serialize, __private::de::StrDeserializer};
+use serde::{Deserialize, Serialize, __private::de::StrDeserializer, de::value};
 use std::{
     error::Error,
     io::{BufReader, BufWriter},
@@ -25,6 +30,8 @@ enum PacketID {
     BUTTON_PACKET_ID = '1' as u8,
     STRING_PACKET_ID = '2' as u8,
     BITMAP_PACKET_ID = '3' as u8,
+    SLIDE_POT_PACKET_ID = '4' as u8,
+    ROT_ENC_PACKET_ID = '5' as u8,
     ACK_PACKET_ID = 255 as u8,
 }
 
@@ -79,6 +86,17 @@ async fn handle_pkt(pkt: Packet, stream: &mut TcpStream, mut reader: BufReader<&
             let pld: StringPayload = reader.into();
             println!("\t{}", pld.msg);
 
+            send_ack(pkt.uid, stream).await;
+        }
+        PacketID::SLIDE_POT_PACKET_ID => {
+            let pld: SlidePotPayload = reader.into();
+            println!("\t{}", pld.value);
+
+            send_ack(pkt.uid, stream).await;
+        }
+        PacketID::ROT_ENC_PACKET_ID => {
+            let pld: RotaryEncPayload = reader.into();
+            println!("\t{:?}", pld);
             send_ack(pkt.uid, stream).await;
         }
         _ => {}
