@@ -1,7 +1,6 @@
-use std::borrow::Cow;
 use std::io::BufReader;
-
 use serde::{Deserialize, Serialize};
+
 #[repr(C)]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SlidePotPayload {
