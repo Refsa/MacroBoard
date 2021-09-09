@@ -13,6 +13,7 @@ pub enum PacketID {
     BITMAP_PACKET_ID = '3' as u8,
     SLIDE_POT_PACKET_ID = '4' as u8,
     ROT_ENC_PACKET_ID = '5' as u8,
+    KEEP_ALIVE_PACKET_ID = 254 as u8,
     ACK_PACKET_ID = 255 as u8,
 }
 

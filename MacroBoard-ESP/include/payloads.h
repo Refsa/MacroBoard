@@ -4,6 +4,14 @@
 #include <packet.h>
 #include <serialize.h>
 
+class EmptyPayload : public ISerializer
+{
+public:
+    void to_bytes(BufDataWriter &writer) {}
+
+    void from_bytes(BufDataReader &reader) {}
+};
+
 class ButtonPayload : public ISerializer
 {
 public:

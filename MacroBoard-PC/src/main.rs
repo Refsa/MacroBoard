@@ -1,16 +1,16 @@
 #![feature(toowned_clone_into)]
 
 mod button_payload;
+mod client;
 mod packet;
 mod rot_enc_payload;
 mod slide_pot_payload;
 mod string_payload;
-mod client;
 
-use crate::client::Void;
-use crate::client::ClientHandle;
 use crate::client::Client;
+use crate::client::ClientHandle;
 use crate::client::Event;
+use crate::client::Void;
 use button_payload::*;
 use packet::*;
 use rot_enc_payload::*;
@@ -18,7 +18,7 @@ use slide_pot_payload::*;
 use string_payload::*;
 
 use serde::{Deserialize, Serialize};
-use std::{io::BufReader};
+use std::io::BufReader;
 use tokio::net::TcpStream;
 
 #[tokio::main]
@@ -46,7 +46,7 @@ async fn handle_event(event: Event, client_handle: &mut ClientHandle) {
         Event::Packet(pkt) => {
             let pkt = &pkt[..];
             let mut reader = BufReader::new(pkt);
-            
+
             let pkt = Packet {
                 id: rmp::decode::read_u8(&mut reader).unwrap(),
                 uid: rmp::decode::read_u32(&mut reader).unwrap(),
@@ -54,10 +54,13 @@ async fn handle_event(event: Event, client_handle: &mut ClientHandle) {
 
             handle_pkt(pkt, client_handle, reader).await;
         }
+        Event::Connected => {
+            println!("Connected to server");
+        }
         Event::Disconnected => {
             println!("Disconnected from server");
         }
-        _ => {},
+        _ => {}
     }
 }
 
@@ -90,7 +93,13 @@ async fn handle_pkt(pkt: Packet, client_handle: &mut ClientHandle, mut reader: B
             println!("\t{:?}", pld);
             send_ack(pkt.uid, client_handle).await;
         }
-        _ => {}
+        PacketID::NIL => {}
+        PacketID::BITMAP_PACKET_ID => {}
+        PacketID::KEEP_ALIVE_PACKET_ID => {
+            println!("Keep Alive");
+            send_ack(pkt.uid, client_handle).await;
+        }
+        PacketID::ACK_PACKET_ID => {}
     }
 }
 

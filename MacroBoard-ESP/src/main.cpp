@@ -21,6 +21,7 @@ typedef enum PacketID
     BITMAP_PACKET_ID = '3',
     SLIDE_POT_PACKET_ID = '4',
     ROT_ENC_PACKET_ID = '5',
+    KEEP_ALIVE_PACKET_ID = 254,
     ACK_PACKET_ID = 255,
 };
 
@@ -29,6 +30,8 @@ static const uint16_t port = 8080;
 AsyncClient *target_client = NULL;
 uint32_t expect_ack = 0;
 std::vector<ISerializer> outbound;
+
+static EmptyPayload emptyPayload = EmptyPayload();
 
 // DISPLAY
 DisplayBuffer display_buffer;
@@ -44,6 +47,8 @@ Thread slide_pot_task;
 
 // Rotary Encoder
 RotaryEncoder rot_enc(3, 14);
+
+size_t last_kap;
 
 void server_send(AsyncClient *client, ISerializer &data, const PacketID &packet_id)
 {
@@ -113,6 +118,9 @@ void on_client_data(void *, AsyncClient *client, void *data, size_t len)
 
         return;
     }
+    case PacketID::KEEP_ALIVE_PACKET_ID:
+    {
+    }
     }
 }
 
@@ -143,6 +151,8 @@ void on_client_connected(void *data, AsyncClient *client)
 
     StringPayload str_pld = StringPayload("AUTH");
     server_send(client, str_pld, STRING_PACKET_ID);
+
+    last_kap = millis();
 }
 
 void refresh_display()
@@ -254,5 +264,11 @@ void loop()
     {
         update_display = false;
         display_refresh.run();
+    }
+
+    if (target_client != NULL && (millis() - last_kap) > 15000)
+    {
+        server_send(target_client, emptyPayload, PacketID::KEEP_ALIVE_PACKET_ID);
+        last_kap = millis();
     }
 }

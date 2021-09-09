@@ -1,10 +1,11 @@
 use crate::TcpStream;
 use std::net::{SocketAddr, SocketAddrV4};
 use tokio::{
-    io::{self, AsyncReadExt, AsyncWriteExt, BufReader},
+    io::{self, AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader},
     net::tcp::{OwnedReadHalf, OwnedWriteHalf},
     select,
     sync::{broadcast, mpsc},
+    time::{sleep, timeout},
 };
 
 use crate::packet::Packet;
@@ -59,23 +60,18 @@ impl Client {
         while let Err(_) = stream {
             stream = TcpStream::connect(self.addr).await;
         }
+        let stream = stream.unwrap();
 
-        let (rx, tx) = stream.unwrap().into_split();
+        let (rx, tx) = stream.into_split();
 
         let _ = self.sender.try_send(Event::Connected);
 
-        let jh = tokio::try_join! {
-            tokio::spawn(Self::sender(self.shutdown.subscribe(), self.outbound, tx)),
-            tokio::spawn(Self::receiver(self.shutdown.subscribe(), self.sender.clone(), rx)),
-        };
-
-        match jh {
-            Ok(_) => {}
-            Err(err) => {
-                println!("Client Shutdown");
-            }
+        tokio::select! {
+            _ = tokio::spawn(Self::sender(self.shutdown.subscribe(), self.outbound, tx)) => { },
+            _ = tokio::spawn(Self::receiver(self.shutdown.subscribe(), self.sender.clone(), rx)) => { },
         }
 
+        let _ = self.shutdown.send(Void);
         let _ = self.sender.try_send(Event::Disconnected);
     }
 
@@ -94,9 +90,13 @@ impl Client {
                 void = shutdown.recv() => match void {
                     Ok(_) => break,
                     Err(_) => break,
-                }
+                },
+                else => break
             }
         }
+
+        println!("Sender Shutdown");
+        sleep(std::time::Duration::from_millis(250)).await;
 
         Ok(())
     }
@@ -104,26 +104,42 @@ impl Client {
     async fn receiver(
         mut shutdown: broadcast::Receiver<Void>,
         sender: mpsc::Sender<Event>,
-        tx: OwnedReadHalf,
+        mut rx: OwnedReadHalf,
     ) -> io::Result<()> {
         let mut buf = [0u8; 1024];
-        let mut reader = BufReader::new(tx);
+        // let mut reader = BufReader::new(rx);
 
         loop {
+            let mut read_count: usize = 0;
+
             select! {
-                msg = reader.read(&mut buf) => match msg {
+                msg = timeout(std::time::Duration::from_secs(30), rx.read(&mut buf)) => match msg {
                     Ok(len) => {
-                        let _ = sender.send(Event::Packet(buf[..len].to_vec())).await;
+                        read_count = len.unwrap_or(0);
+                        if read_count == 0 {
+                            break;
+                        }
+
+                        let _ = sender.send(Event::Packet(buf[..read_count].to_vec())).await;
                     }
-                    Err(_) => {}
+                    Err(err) => {
+                        println!("Error when sending: {:?}", err);
+                    }
                 },
                 void = shutdown.recv() => match void {
                     Ok(_) => break,
                     Err(_) => break,
-                }
+                },
+                else => break
+            }
+
+            if read_count == 0 {
+                println!("Remote host most likely disconnected");
+                break;
             }
         }
 
+        println!("Receiver Shutdown");
         Ok(())
     }
 }
